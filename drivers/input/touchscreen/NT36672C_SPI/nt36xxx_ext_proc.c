@@ -959,8 +959,7 @@ static ssize_t nvt_edge_reject_switch_proc_read(struct file *filp, char __user *
 	nvt_get_edge_reject_switch(&edge_reject_switch);
 	mutex_unlock(&ts->lock);
 	cnt = snprintf(tmp_buf, sizeof(tmp_buf), "edge_reject_switch: %d\n", edge_reject_switch);
-	if (copy_to_user(buf, tmp_buf, sizeof(tmp_buf))) {
-		NVT_ERR("copy_to_user() error!\n");
+	if (copy_to_user(buf, tmp_buf, cnt)) {
 		return -EFAULT;
 	}
 	buf += cnt;
@@ -1035,6 +1034,8 @@ static ssize_t aftersale_selftest_write(struct file *file, const char __user *bu
 				size_t count, loff_t *ppos)
 {
 	char temp_buf[20] = {0};
+	if (count >= sizeof(temp_buf))
+		count = sizeof(temp_buf) - 1;
 	if (copy_from_user(temp_buf, buf, count)) {
 		return count;
 	}
@@ -1409,8 +1410,7 @@ static ssize_t nvt_proximity_switch_proc_read(struct file *filp, char __user *bu
 	mutex_unlock(&ts->lock);
 
 	cnt = snprintf(tmp_buf, sizeof(tmp_buf), "proximity_switch: %d\n", proximity_switch);
-	if (copy_to_user(buf, tmp_buf, sizeof(tmp_buf))) {
-		NVT_ERR("copy_to_user() error!\n");
+	if (copy_to_user(buf, tmp_buf, cnt)) {
 		return -EFAULT;
 	}
 	buf += cnt;
@@ -1500,25 +1500,25 @@ static ssize_t nvt_store_data_proximity_read(struct file *filp, char __user *buf
 	data_buf = kzalloc(count + 1, GFP_KERNEL);
 	if (!data_buf) {
 		NVT_ERR("Allocate tmp_buf fail!\n");
-		ret = -ENOMEM;
-		kfree(data_buf);
+		return -ENOMEM;
 	}
 
 	NVT_LOG("-----nvt_store_data_proximity_read----\n");
 	NVT_LOG("g_new_proximity_event_flag is %d,g_priximity_data is %d\n",g_new_proximity_event_flag,g_priximity_data);
 	wait_event_interruptible(proximity_switch_queue,g_new_proximity_event_flag);
 
-	cnt = snprintf(data_buf,sizeof(data_buf),"%d\n",g_priximity_data);
-	if (copy_to_user(buf, data_buf, sizeof(data_buf))) {
+	cnt = snprintf(data_buf, count + 1, "%d\n", g_priximity_data);
+	if (copy_to_user(buf, data_buf, cnt)) {
 		NVT_ERR("copy_to_user() error!\n");
+		kfree(data_buf);
 		return -EFAULT;
 	}
 	g_new_proximity_event_flag = 0;
+	kfree(data_buf);
 	buf += cnt;
 	ret += cnt;
 	return ret;
 }
-
 static __poll_t nvt_store_data_proximity_poll(struct file *file, poll_table *wait)
 {
 	int ret = 0;

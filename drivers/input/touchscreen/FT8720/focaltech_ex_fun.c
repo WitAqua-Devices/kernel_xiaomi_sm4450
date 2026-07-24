@@ -1510,6 +1510,8 @@ static ssize_t fts_aftersale_selftest_write(struct file *file, const char __user
 				size_t count, loff_t *ppos)
 {
 	char temp_buf[20] = {0};
+	if (count >= sizeof(temp_buf))
+		count = sizeof(temp_buf) - 1;
 	if (copy_from_user(temp_buf, buf, count)) {
 		return count;
 	}
@@ -1855,7 +1857,7 @@ static ssize_t fts_proximity_switch_proc_read(struct file *filp, char __user *bu
 	mutex_unlock(&input_dev->mutex);
 
 	cnt = snprintf(tmp_buf, sizeof(tmp_buf), "proximity_switch: %d\n", proximity_switch);
-	if (copy_to_user(buf, tmp_buf, sizeof(tmp_buf))) {
+	if (copy_to_user(buf, tmp_buf, cnt)) {
 		FTS_ERROR("copy_to_user() error!\n");
 		return -EFAULT;
 	}
@@ -1946,26 +1948,26 @@ static ssize_t fts_store_data_proximity_read(struct file *filp, char __user *buf
 	data_buf = kzalloc(count + 1, GFP_KERNEL);
 	if (!data_buf) {
 		FTS_INFO("Allocate tmp_buf fail!\n");
-		ret = -ENOMEM;
-		kfree(data_buf);
+		return -ENOMEM;
 	}
 
 	FTS_INFO("-----fts_store_data_proximity_read----\n");
 	FTS_INFO("g_new_proximity_event_falg is %d,g_priximity_data is %d\n",g_new_proximity_event_falg,g_priximity_data);
 	wait_event_interruptible(proximity_switch_queue,g_new_proximity_event_falg);
 
-	cnt = snprintf(data_buf,sizeof(data_buf),"%d\n",g_priximity_data);
-	if (copy_to_user(buf, data_buf, sizeof(data_buf))) {
+	cnt = snprintf(data_buf, count + 1, "%d\n", g_priximity_data);
+	if (copy_to_user(buf, data_buf, cnt)) {
 		FTS_INFO("copy_to_user() error!\n");
+		kfree(data_buf);
 		return -EFAULT;
 	}
 
 	g_new_proximity_event_falg = 0;
+	kfree(data_buf);
 	buf += cnt;
 	ret += cnt;
 	return ret;
 }
-
 static __poll_t fts_store_data_proximity_poll(struct file *file, poll_table *wait)
 {
 	int ret = 0;
